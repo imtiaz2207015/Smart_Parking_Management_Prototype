@@ -95,3 +95,12 @@ Never commit `firebase-key.json`. Admin dashboard is Auth-gated — use strong p
 ## 📄 License
 
 MIT — see `LICENSE`.
+
+## Project Photos
+
+<img width="1600" height="1134" alt="WhatsApp Image 2026-09-02 at 7 07 35 PM" src="https://github.com/user-attachments/assets/0b49fb8a-0ed7-4edf-aeda-9fe89f5b53b0" />
+
+
+<img width="1304" height="1600" alt="WhatsApp Image 2026-09-02 at 7 07 40 PM" src="https://github.com/user-attachments/assets/f50cbd1d-4fc5-45bf-b6c4-7cbf36b64113" />
+
+
