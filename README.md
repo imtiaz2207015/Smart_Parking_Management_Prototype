@@ -214,7 +214,4 @@ Security & privacy
 
 ---
 
-If you'd like, I can:
-- Generate a basic systemd service file to run smart_parking.py at startup.
-- Add a small Python helper script to initialize Firestore and rotate camera focus.
-- Create a .gitignore that excludes firebase-key.json and captures/.
+
