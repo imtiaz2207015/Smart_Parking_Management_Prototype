@@ -1,217 +1,93 @@
+# 🅿️ Smart Parking Management — Prototype
 
-# Smart Parking Management — Prototype
+A Raspberry Pi smart parking prototype: GPIO sensors + a CSI camera (IMX519) for plate OCR, Firestore for realtime slot/vehicle data, plus an admin dashboard and a public live-status page.
 
-A small prototype for a smart parking system that combines Raspberry Pi GPIO sensors, a CSI camera (IMX519), OCR-based license plate recognition, and Firestore for realtime telemetry and vehicle logs. The project includes a lightweight admin dashboard and a public live-status page.
+**Entry:** capture photo → OCR plate → log entry to Firestore → open gate.
+**Exit:** capture photo → OCR plate → fuzzy-match against parked vehicles. Match found → close that record. No match → logged as `unresolved_exit` for manual review (gate opens either way).
 
-This README explains the project layout, hardware and software requirements, setup steps, how to run the system, and troubleshooting/tuning tips.
+## ✨ Features
 
----
+- Realtime slot occupancy via Firestore
+- Two-pass Tesseract + OpenCV plate OCR
+- Timestamped entry/exit photo capture
+- Fuzzy plate matching (difflib) across multiple parked vehicles
+- Firebase Auth-gated admin dashboard + public status page
 
-Table of contents
-- Project overview
-- Features
-- Repository layout
-- Hardware (wiring / pins)
-- Firestore structure (data model)
-- Software prerequisites
-- Installation & setup
-- Running the system
-- Useful scripts & tools
-- Tuning OCR and camera
-- Troubleshooting
-- Contributing
-- License
+## 📁 Repository layout
 
----
+| File | Purpose |
+|---|---|
+| `smart_parking.py` | Main Pi program — sensors, gate, camera, core logic |
+| `firebase_helper.py` | Firestore read/write helpers |
+| `plate_ocr.py` | Plate detection & OCR |
+| `admin.html` | Admin dashboard (Firebase Auth + Firestore) |
+| `index.html` | Public live status page |
+| `captures/` | Entry/exit photos (auto-created) |
 
-Project overview
-----------------
-This prototype monitors three parking slots and controls a shared entry/exit gate. When a vehicle arrives:
-- Entry: capture a photo, OCR the plate, log an entry record to Firestore and open the gate.
-- Exit: capture a photo, OCR the plate, attempt to fuzzy-match against parked vehicles; if matched the vehicle record is closed, otherwise an unresolved exit is logged for manual reconciliation.
+## 🔌 Hardware (GPIO mapping)
 
-A simple admin dashboard (admin.html) provides authentication-backed access to vehicle logs and allows manual corrections. A public live view (index.html) displays slot occupancy in realtime.
+| Component | GPIO | Physical pin |
+|---|---|---|
+| Entry IR sensor | 23 | 16 |
+| Exit IR sensor | 24 | 18 |
+| Gate servo (shared) | 18 | 12 |
+| Slot 1 | 17 | 11 |
+| Slot 2 | 27 | 13 |
+| Slot 3 | 22 | 15 |
 
-Features
---------
-- Realtime slot occupancy updates synchronized with Firestore
-- Plate OCR using Tesseract (pytesseract + OpenCV)
-- Entry/Exit capture with timestamped photos
-- Fuzzy matching for exit plate resolution
-- Web admin UI for reviewing and editing logs
-- Simple public live status page
+Camera: IMX519 (Arducam) via CSI; lens VCM at `/dev/v4l-subdev3`, focus set via `v4l2-ctl`.
 
-Repository layout
------------------
-- firebase_helper.py — Firestore read/write helpers (initialize slots, log entry/exit, query parked vehicles)
-- plate_ocr.py — OpenCV + Tesseract-based plate detection and recognition utilities
-- smart_parking.py — Main Raspberry Pi program: GPIO sensors, gate servo control, camera capture, higher-level logic
-- admin.html — Admin dashboard (Firebase Auth + Firestore)
-- index.html — Public live status page (Firestore)
-- captures/ — runtime directory where entry/exit photos are stored (created automatically)
+## 🔥 Firestore structure
 
-Hardware (GPIO mapping)
-----------------------
-This mapping is used in smart_parking.py:
-- Entry IR sensor -> GPIO 23 (physical pin 16)
-- Exit IR sensor  -> GPIO 24 (physical pin 18)
-- Gate servo      -> GPIO 18 (physical pin 12)
-- Slot 1 sensor   -> GPIO 17 (physical pin 11)
-- Slot 2 sensor   -> GPIO 27 (physical pin 13)
-- Slot 3 sensor   -> GPIO 22 (physical pin 15)
+**`slots`** (`slot_1`/`slot_2`/`slot_3`): `status` (`occupied`|`empty`), `updated_at`
 
-Camera:
-- IMX519 (Arducam) connected to CSI
-- Lens VCM sub-device: `/dev/v4l-subdev3` (used to set focus via `v4l2-ctl`)
+**`vehicle_logs`** (auto-id): `plate_number`, `entry_time`, `exit_time`, `status` (`parked`|`exited`|`unresolved_exit`), `exit_plate_ocr` (audit only)
 
-Firestore structure
--------------------
-Collection: `slots`
-- Documents: `slot_1`, `slot_2`, `slot_3`
-- Document fields:
-  - `status`: "occupied" | "empty"
-  - `updated_at`: timestamp
+## 🧰 Prerequisites
 
-Collection: `vehicle_logs`
-- Documents: auto-id
-- Fields:
-  - `plate_number` (string) — entry plate, or "UNKNOWN"
-  - `entry_time` (timestamp) | null
-  - `exit_time` (timestamp) | null
-  - `status`: "parked" | "exited" | "unresolved_exit"
-  - `exit_plate_ocr`: optional raw OCR text from exit photo (for audit)
+**Pi (Debian/Raspbian):** Python 3.9+, `tesseract-ocr`, `v4l-utils`, `rpicam-still`, and Python packages `firebase-admin opencv-python pytesseract gpiozero`.
 
-Important: unresolved exits are written with `status: "unresolved_exit"` so admin can reconcile later.
+**Web UI:** Firebase JS SDK (already wired via CDN) — serve statically, no build step needed.
 
-Software prerequisites
-----------------------
-On the Raspberry Pi (Debian/Raspbian-based):
-- Python 3.9+ (system default on recent images)
-- pip
-- system packages:
-  - libatlas-base-dev (optional, for OpenCV performance)
-  - libjpeg-dev, zlib1g-dev, libpng-dev (if building OpenCV)
-  - v4l-utils (provides `v4l2-ctl`)
-  - rpicam-still (or another capture utility used by the capture_photo function)
-  - tesseract-ocr (system Tesseract engine) and language packs
-- Python packages:
-  - firebase-admin
-  - opencv-python
-  - pytesseract
-  - gpiozero
-  - difflib (part of stdlib)
-  - any other required dependencies (see installation commands below)
+## ⚙️ Setup
 
-Web UI:
-- The HTML files use the Firebase JavaScript SDK (already wired in the files). The public web UI and admin page can be hosted from a static server or served with `python -m http.server` for simple testing.
+```bash
+git clone https://github.com/imtiaz2207015/Smart_Parking_Management_Prototype.git
+cd Smart_Parking_Management_Prototype
+sudo apt update && sudo apt install -y python3-pip tesseract-ocr libatlas-base-dev v4l-utils
+python3 -m pip install firebase-admin opencv-python pytesseract gpiozero
+```
 
-Installation & setup
---------------------
-1. Clone the repo to your Pi or dev machine:
-  - git clone https://github.com/imtiaz2207015/Smart_Parking_Management_Prototype.git cd Smart_Parking_Management_Prototype
+1. Add your Firebase service account key as `firebase-key.json` in the project root. **Never commit this file** — add it to `.gitignore`.
+2. Replace the `firebaseConfig` object in `admin.html` and `index.html` with your own project's values (Firebase Console → Project Settings → SDK setup).
+3. Confirm `/dev/v4l-subdev3` matches your board, or update `CAMERA_LENS_DEVICE` in `smart_parking.py`.
+4. Initialize Firestore slots (one-time):
+   ```bash
+   python3 -c "from firebase_helper import initialize_slots; initialize_slots()"
+   ```
 
-2. Install system packages (example for Debian/Raspbian):
-   - sudo apt update sudo apt install -y python3-pip tesseract-ocr libatlas-base-dev v4l-utils
+## ▶️ Running
 
-3. Install Python dependencies:
-   - python3 -m pip install --upgrade pip python3 -m pip install firebase-admin opencv-python pytesseract gpiozero
+```bash
+sudo python3 smart_parking.py       # core system (needs GPIO/camera access)
+python3 -m http.server 8000         # serve admin.html / index.html locally
+```
 
-     
-4. Firebase service account (server-side):
-- Create a Firebase project and a service account key for the project.
-- Download the service account JSON and place it at the project root with the filename:
-  ```
-  firebase-key.json
-  ```
-- WARNING: Do NOT commit this file to source control.
+## 🎯 Tuning
 
-5. Web Firebase configuration (client-side):
-- The web UI (admin.html and index.html) already include a Firebase config object.
-- To use your own Firebase project, replace the `firebaseConfig` object values in both HTML files with your project's values from the Firebase Console (Project Settings -> SDK setup).
+OCR tunables live near the top of `plate_ocr.py` (`DETECT_SCALE`, `DETECT_MIN_CONFIDENCE`, aspect-ratio bounds, `RECOGNIZE_CONFIG`, etc). If OCR is unreliable: improve lighting/framing, recheck `FOCUS_VALUE` in `smart_parking.py`, or pass `debug_crop_path` to `read_plate()` and inspect what the detector picked up.
 
-6. Ensure camera focus device:
-- The code uses `/dev/v4l-subdev3` to set lens focus. Confirm the correct device on your board or update `CAMERA_LENS_DEVICE` in `smart_parking.py`.
+## 🩹 Troubleshooting
 
-Initialize Firestore slots (one-time)
-------------------------------------
-You can initialize slots from Python:python3 -c "from firebase_helper import initialize_slots; initialize_slots()"
+- **Camera fails:** confirm `rpicam-still` works standalone and the camera is enabled/detected.
+- **Permissions:** GPIO/camera access may need `sudo` or the right user groups.
+- **Firebase errors:** check `firebase-key.json` is valid, Firestore is enabled, and `firebaseConfig` in the HTML matches your project.
+- **OCR returns `UNKNOWN`:** check `captures/` or a debug crop to see what the camera actually saw.
 
-This writes documents `slot_1`, `slot_2`, `slot_3` to Firestore with status `empty`.
+## 🔒 Security & privacy
 
-Running the system
-------------------
-- Start the core parking process on the Pi (this requires hardware present and correct permissions):sudo python3 smart_parking.py
-  Note: Depending on your GPIO and camera setup you may need to run as root or with appropriate user groups.
+Never commit `firebase-key.json`. Admin dashboard is Auth-gated — use strong passwords. Plate photos/OCR text are stored locally and in Firestore — treat as sensitive data in production.
 
-- Serve the web UI locally for testing:Serve static files at http://<pi-ip>:8000/
-python3 -m http.server 8000
-Then open `/index.html` or `/admin.html` in a browser on the same network. For production, host the HTML on any static host (or use Firebase Hosting).
+## 📄 License
 
-Useful scripts & utilities
--------------------------
-- plate_ocr.py
-- CLI usage:
-  ```
-  python3 plate_ocr.py <path_to_image>
-  ```
-- Returns OCR result and writes a debug crop to `last_ocr_crop.jpg`.
-- Use `read_plate_string(path)` in code — it returns `"UNKNOWN"` on failure.
-
-- firebase_helper.py
-- `initialize_slots(...)` — create default slot documents
-- `update_slot_status(slot_id, status)` — update a slot
-- `log_vehicle_entry(plate_number, entry_time)` — create parked record
-- `get_all_parked_vehicles()` — returns list of parked records
-- `log_vehicle_exit_by_id(doc_id, exit_time, exit_plate_ocr)` — close a vehicle log
-- `log_unresolved_exit(...)` — log exit when no match is confident
-
-Tuning OCR and camera
----------------------
-- plate_ocr.py contains parameters near the top:
-- DETECT_SCALE, DETECT_MIN_CONFIDENCE, RECOGNIZE_CONFIG, MIN/MAX aspect ratios, MIN_BOX_WIDTH/HEIGHT, MIN_PLATE_CHARS
-- If OCR produces poor results:
-- Increase camera image quality / lighting
-- Adjust focus value (FOCUS_VALUE in smart_parking.py) and ensure v4l2 device is correct
-- Tune Tesseract psm (--psm) and whitelist characters in RECOGNIZE_CONFIG
-- Save debug crops (the code writes crop images if `debug_crop_path` is given) and inspect them to determine issues
-
-Troubleshooting
----------------
-- Camera capture failures:
-- Ensure `rpicam-still` (or chosen capture tool) is installed and functional.
-- Confirm camera is enabled in Raspberry Pi configuration and accessible.
-
-- Permissions:
-- Accessing GPIO and camera devices may require root or group membership. Try `sudo` or adjust group permissions.
-
-- Firebase errors:
-- Check that `firebase-key.json` is valid and that Firestore is enabled in your project.
-- For web UI, ensure the Firebase config in the HTML matches the intended project and that Firestore rules allow the client actions used (admin page expects authenticated access).
-
-- OCR returns empty or "UNKNOWN":
-- Inspect debug crop saved by plate_ocr.py or check `captures/` images to see how the plate looks.
-- Improve lighting, framing, or adjust detection parameters.
-
-Contributing
-------------
-This repo is a prototype. If you want to extend it:
-- Improve robustness of OCR (e.g., use a detection model + classification pipeline)
-- Add unit tests / integration tests
-- Add a proper backend API (instead of direct Firestore access) to improve security
-- Add Docker support for consistent runtime environments
-
-Please open issues or pull requests with improvements.
-
-License
--------
-MIT License — see LICENSE file (or create one) for details.
-
-Security & privacy
-------------------
-- Do not commit `firebase-key.json` or any private credentials to the repository.
-- The admin dashboard uses Firebase Authentication — choose strong passwords and restrict access.
-- Plate OCR images are captured and stored locally (captures/) and some OCR strings are written to Firestore; treat these as sensitive in production.
-
----
-
-
+MIT — see `LICENSE`.
