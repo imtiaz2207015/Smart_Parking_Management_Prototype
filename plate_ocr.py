@@ -149,6 +149,7 @@ def read_plate_string(image_path, debug_crop_path=None):
 
 if __name__ == "__main__":
     import sys
+    
 
     if len(sys.argv) != 2:
         print("Usage: python3 plate_ocr.py <path_to_image>")
