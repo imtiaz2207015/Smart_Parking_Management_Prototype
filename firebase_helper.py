@@ -56,6 +56,7 @@ def log_vehicle_entry(plate_number="UNKNOWN", entry_time=None):
     if entry_time is None:
         entry_time = datetime.now(timezone.utc)
 
+  
     doc_ref = db.collection("vehicle_logs").document()
     doc_ref.set({
         "plate_number": plate_number,
@@ -63,6 +64,7 @@ def log_vehicle_entry(plate_number="UNKNOWN", entry_time=None):
         "exit_time": None,
         "status": "parked"
     })
+  
     print(f"[Firestore] Logged entry for {plate_number} (doc: {doc_ref.id}) at {entry_time.isoformat()}")
     return doc_ref.id
 
