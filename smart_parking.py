@@ -34,10 +34,7 @@ Plate OCR + exit matching:
   the gate still opens (physical access shouldn't block on OCR), but the
   exit is logged as "unresolved_exit" for admin to manually reconcile.
 
-NOTE: If ENTRY or EXIT sensors are still unreliable on your hardware,
-set ENTRY_ENABLED / EXIT_ENABLED to False below rather than commenting
-out code. Run sensor_test.py on that pin first to confirm it's fixed
-before flipping it back to True.
+
 """
 
 from gpiozero import DigitalInputDevice, AngularServo
@@ -70,15 +67,14 @@ SLOT_PINS = {
 }
 
 # Maps the human-readable slot names above to the Firestore document IDs
-# used by firebase_helper / the dashboards (slot_1, slot_2, slot_3).
+
 SLOT_FIRESTORE_IDS = {
     "Slot 1": "slot_1",
     "Slot 2": "slot_2",
     "Slot 3": "slot_3",
 }
 
-# Flip these to False if a sensor is still misbehaving in the lab.
-# Test with sensor_test.py first before re-enabling.
+
 ENTRY_ENABLED = True
 EXIT_ENABLED = True
 
@@ -90,15 +86,10 @@ GATE_COOLDOWN_SECONDS = 3       # ignore re-triggers right after closing
 SLOT_POLL_INTERVAL = 0.5        # how often to check slot sensors
 ENTRY_EXIT_POLL_INTERVAL = 0.2  # how often to check entry/exit sensors
 
-# A car must be continuously detected for this long before we trust it's
-# really there (filters out IR noise/flicker). Only after this holds do we
-# take a photo, and only after the photo is taken does the gate open.
+
 DETECTION_CONFIRM_SECONDS = 5
 
-# Minimum difflib similarity ratio (0-1) for an exit-photo OCR plate to be
-# considered a match against a parked vehicle's entry plate_number. Below
-# this, the exit is logged as unresolved rather than guessing which parked
-# car actually left.
+
 PLATE_MATCH_THRESHOLD = 0.6
 
 PHOTO_DIR = "captures"  # created if missing; entry_*.jpg / exit_*.jpg saved here
@@ -111,14 +102,7 @@ CAPTURE_TIMEOUT_MS = 1000  # rpicam-still capture delay
 
 
 def set_camera_focus(value=FOCUS_VALUE):
-    """Lock the IMX519's lens motor to a fixed focus position.
-
-    Autofocus isn't usable here (no AF algorithm in the current libcamera
-    tuning file for this sensor), so focus is set once, manually, via the
-    lens subdevice directly. Both the entry and exit sensor positions were
-    tested and confirmed sharp at this value, so no per-capture switching
-    is needed.
-    """
+    
     subprocess.run(
         ["v4l2-ctl", "-d", CAMERA_LENS_DEVICE, "-c", f"focus_absolute={value}"],
         check=True,
@@ -161,13 +145,7 @@ def capture_timestamped_photo(source_name):
 
 
 def find_best_plate_match(ocr_text, parked_vehicles):
-    """Fuzzy-match ocr_text against the plate_number of each currently
-    parked vehicle, using difflib's SequenceMatcher ratio (0-1).
-
-    Returns (doc_id, score) for the best match, or (None, 0.0) if
-    ocr_text is empty/UNKNOWN, no parked vehicles exist, or no parked
-    vehicle has a usable plate_number to compare against.
-    """
+    
     if not ocr_text or ocr_text == "UNKNOWN" or not parked_vehicles:
         return None, 0.0
 
@@ -187,10 +165,7 @@ def find_best_plate_match(ocr_text, parked_vehicles):
 
 # ---------------- HARDWARE SETUP ----------------
 
-# NOTE: pigpio is not available on this Raspberry Pi OS version, so we use
-# gpiozero's default pin factory, which uses lgpio on modern Raspberry Pi OS.
-# bounce_time=0.3 gives software debounce on top of any hardware fix
-# (pot adjustment / wiring) already done at the sensor itself.
+
 
 entry_ir = DigitalInputDevice(ENTRY_IR_PIN, pull_up=True, bounce_time=0.3) if ENTRY_ENABLED else None
 exit_ir = DigitalInputDevice(EXIT_IR_PIN, pull_up=True, bounce_time=0.3) if EXIT_ENABLED else None
@@ -217,11 +192,7 @@ gate_lock = threading.Lock()
 
 def confirm_still_detected(sensor, hold_seconds=DETECTION_CONFIRM_SECONDS,
                             poll_interval=ENTRY_EXIT_POLL_INTERVAL):
-    """Re-poll `sensor` for `hold_seconds`, bailing out early if it drops.
-
-    Returns True only if the sensor stayed active the whole time (real car,
-    not noise/flicker). Returns False the moment it goes inactive.
-    """
+   
     elapsed = 0.0
     while elapsed < hold_seconds:
         if not sensor.is_active:
@@ -234,11 +205,7 @@ def confirm_still_detected(sensor, hold_seconds=DETECTION_CONFIRM_SECONDS,
 # ---------------- GATE LOGIC ----------------
 
 def trigger_gate(source_name):
-    """Open the gate to 90 degrees, hold, then return to 0 degrees.
-
-    Returns True if this call actually opened the gate, False if it was
-    skipped because the gate was already busy (so callers can log it).
-    """
+    
     global gate_busy
 
     with gate_lock:
@@ -275,9 +242,7 @@ def watch_entry():
             print("[ENTRY] Confirmed - capturing photo before opening gate")
             photo_path, capture_time = capture_timestamped_photo("ENTRY")
 
-            # Run OCR on the entry photo. Falls back to "UNKNOWN" if OCR
-            # finds nothing or the photo capture failed - admin corrects
-            # any UNKNOWN plates via the dashboard shortly after entry.
+            
             plate_text = "UNKNOWN"
             if photo_path:
                 try:
@@ -288,9 +253,7 @@ def watch_entry():
 
             if trigger_gate("ENTRY"):
                 try:
-                    # capture_time (when the photo was actually taken) is used
-                    # as entry_time so the dashboard reflects the confirmed
-                    # moment, not whenever this Firestore call happens to run.
+                    
                     log_vehicle_entry(plate_text, entry_time=capture_time)
                 except Exception as e:
                     print(f"[Firestore] ERROR logging entry: {e}")
@@ -305,7 +268,7 @@ def watch_exit():
     while True:
         active = exit_ir.is_active
         if active and not was_active:
-            # Rising edge: sensor just went from clear -> detected.
+            
             print(f"[EXIT] Object detected, confirming for {DETECTION_CONFIRM_SECONDS}s...")
 
             if not confirm_still_detected(exit_ir):
@@ -317,9 +280,7 @@ def watch_exit():
             print("[EXIT] Confirmed - capturing photo before opening gate")
             photo_path, capture_time = capture_timestamped_photo("EXIT")
 
-            # OCR the exit photo - this result is used to find which parked
-            # car is leaving (fuzzy match below), and is also stored as an
-            # audit field on whichever record gets closed.
+            
             exit_plate_text = "UNKNOWN"
             if photo_path:
                 try:
@@ -423,5 +384,3 @@ if __name__ == "__main__":
         print("\nShutting down. Returning gate to 0 degrees.")
         gate_servo.angle = GATE_CLOSED_ANGLE
         sleep(1)
-
-smart_parking.py

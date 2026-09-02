@@ -33,10 +33,7 @@ db = firestore.client()
 
 
 def initialize_slots(slot_ids=("slot_1", "slot_2", "slot_3")):
-    """
-    Create/reset all slot documents to 'empty'.
-    Run this once at system startup or manually to seed Firestore.
-    """
+   
     for slot_id in slot_ids:
         db.collection("slots").document(slot_id).set({
             "status": "empty",
@@ -46,11 +43,7 @@ def initialize_slots(slot_ids=("slot_1", "slot_2", "slot_3")):
 
 
 def update_slot_status(slot_id, status):
-    """
-    Update a single slot's status.
-    slot_id: e.g. "slot_1"
-    status: "occupied" or "empty"
-    """
+    
     db.collection("slots").document(slot_id).set({
         "status": status,
         "updated_at": datetime.now(timezone.utc)
@@ -59,15 +52,7 @@ def update_slot_status(slot_id, status):
 
 
 def log_vehicle_entry(plate_number="UNKNOWN", entry_time=None):
-    """
-    Create a new vehicle_logs entry when a car enters.
-
-    entry_time: optional datetime (should be timezone-aware UTC) marking the
-    moment the car was actually confirmed/photographed. If omitted, falls
-    back to the moment this function runs.
-
-    Returns the new document ID.
-    """
+   
     if entry_time is None:
         entry_time = datetime.now(timezone.utc)
 
@@ -83,12 +68,7 @@ def log_vehicle_entry(plate_number="UNKNOWN", entry_time=None):
 
 
 def get_all_parked_vehicles():
-    """
-    Returns a list of all vehicle_logs records with status == 'parked'.
-    Each dict includes 'id' plus the document fields.
-    Used for fuzzy plate-matching on exit, since multiple cars can be
-    parked (entered but not yet exited) at the same time.
-    """
+    
     query = db.collection("vehicle_logs").where("status", "==", "parked")
     results = list(query.stream())
 
@@ -125,12 +105,7 @@ def log_vehicle_exit_by_id(doc_id, exit_time=None, exit_plate_ocr=None):
 
 
 def log_unresolved_exit(exit_time=None, exit_plate_ocr=None):
-    """
-    Create a standalone record for an exit that couldn't be matched to any
-    parked vehicle (OCR failed, or no fuzzy match cleared the threshold).
-    The gate still opens (handled by the caller) - this just leaves a
-    breadcrumb so admin can manually reconcile which parked car actually left.
-    """
+    
     if exit_time is None:
         exit_time = datetime.now(timezone.utc)
 
@@ -145,5 +120,3 @@ def log_unresolved_exit(exit_time=None, exit_plate_ocr=None):
     print(f"[Firestore] Logged UNRESOLVED exit (doc: {doc_ref.id}) at {exit_time.isoformat()} "
           f"- admin needs to manually match this to a parked car")
     return doc_ref.id
-
-firebase_helper.py
