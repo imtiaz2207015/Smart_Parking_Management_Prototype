@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Parking — Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0c10;
+    --panel: #12151b;
+    --panel-border: #1e232c;
+    --panel-border-hi: #2a3140;
+    --green: #3ddc84;
+    --green-dim: #1c3a2a;
+    --red: #ff5470;
+    --red-dim: #3a1c24;
+    --blue: #5b8def;
+    --muted: #62697a;
+    --text: #e6e9ef;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--void);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91,141,239,0.08), transparent),
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+
+  h1 { font-family: var(--mono); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.4px; text-align: center; margin: 0 0 6px; }
+  .subtitle { text-align: center; color: var(--muted); margin-bottom: 14px; font-size: 0.88rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 3px;
+    color: var(--muted); text-transform: uppercase; text-align: center; margin-bottom: 8px;
+  }
+
+  .conn-status {
+    display: flex; width: fit-content; margin: 0 auto 32px;
+    align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.5px;
+    color: var(--muted); background: var(--panel); border: 1px solid var(--panel-border);
+    padding: 6px 14px; border-radius: 999px;
+  }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .conn-status.live { color: var(--green); border-color: var(--green-dim); }
+  .conn-status.live .conn-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse-dot 1.8s ease-in-out infinite; }
+  .conn-status.error { color: var(--red); border-color: var(--red-dim); }
+  .conn-status.error .conn-dot { background: var(--red); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .slots-row {
+    display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
+    max-width: 900px; margin: 0 auto 44px;
+  }
+  .slot-pill {
+    position: relative;
+    font-family: var(--mono);
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    letter-spacing: 0.3px;
+  }
+  .slot-pill::before, .slot-pill::after { content: ""; position: absolute; width: 7px; height: 7px; }
+  .slot-pill::before { top: 4px; left: 4px; border-top: 1.5px solid var(--panel-border-hi); border-left: 1.5px solid var(--panel-border-hi); }
+  .slot-pill::after { bottom: 4px; right: 4px; border-bottom: 1.5px solid var(--panel-border-hi); border-right: 1.5px solid var(--panel-border-hi); }
+  .slot-pill.empty { background: linear-gradient(180deg, rgba(61,220,132,0.08), var(--panel)); color: var(--green); border-color: var(--green-dim); }
+  .slot-pill.occupied { background: linear-gradient(180deg, rgba(255,84,112,0.08), var(--panel)); color: var(--red); border-color: var(--red-dim); }
+
+  .section-title {
+    max-width: 1000px; margin: 0 auto 12px;
+    font-family: var(--mono); font-size: 0.78rem;
+    color: var(--muted); font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  .table-wrap {
+    max-width: 1000px; margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 6px; overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+  thead { background: #171b22; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--panel-border); }
+  th {
+    font-family: var(--mono); color: var(--muted); font-weight: 600;
+    text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px;
+  }
+  tbody tr:hover { background: rgba(255,255,255,0.015); }
+  tr:last-child td { border-bottom: none; }
+  .badge { font-family: var(--mono); padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.5px; }
+  .badge.parked { background: var(--red-dim); color: var(--red); }
+  .badge.exited { background: var(--green-dim); color: var(--green); }
+  .plate { font-family: var(--mono); font-weight: 600; letter-spacing: 1.5px; }
+  .empty-msg { text-align: center; padding: 30px; color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
+
+  /* ---- Login gate ---- */
+  .login-gate { min-height: 78vh; display: flex; align-items: center; justify-content: center; }
+  .login-box {
+    width: 100%; max-width: 340px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 34px 28px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .login-box::before, .login-box::after { content: ""; position: absolute; width: 10px; height: 10px; }
+  .login-box::before { top: 6px; left: 6px; border-top: 1.5px solid var(--panel-border-hi); border-left: 1.5px solid var(--panel-border-hi); }
+  .login-box::after { bottom: 6px; right: 6px; border-bottom: 1.5px solid var(--panel-border-hi); border-right: 1.5px solid var(--panel-border-hi); }
+
+  .login-title { font-family: var(--mono); text-align: center; font-size: 1.15rem; margin: 0 0 4px; }
+  .login-subtitle { text-align: center; color: var(--muted); font-size: 0.82rem; margin: 0 0 26px; }
+  .field-label { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .field-input {
+    background: var(--void); border: 1px solid var(--panel-border);
+    border-radius: 4px; color: var(--text);
+    font-family: var(--mono);
+    padding: 10px 12px; font-size: 0.88rem; margin-bottom: 18px; outline: none;
+  }
+  .field-input:focus { border-color: var(--blue); }
+  .login-btn {
+    background: var(--blue); color: #0a0c10; border: none; border-radius: 4px;
+    padding: 11px; font-size: 0.9rem; font-weight: 700; font-family: var(--mono);
+    letter-spacing: 0.5px; cursor: pointer; margin-top: 4px;
+  }
+  .login-btn:hover { background: #6f9bf2; }
+  .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .login-error { color: var(--red); font-size: 0.8rem; text-align: center; margin-top: 14px; min-height: 1em; font-family: var(--mono); }
+
+  .dashboard-hidden { display: none; }
+
+  .topbar { max-width: 1000px; margin: 0 auto 18px; display: flex; justify-content: flex-end; }
+  .signout-btn {
+    background: transparent; border: 1px solid var(--panel-border); color: var(--muted);
+    padding: 7px 16px; border-radius: 4px; font-family: var(--mono);
+    font-size: 0.75rem; letter-spacing: 0.5px; cursor: pointer;
+  }
+  .signout-btn:hover { color: var(--text); border-color: var(--panel-border-hi); }
+
+  /* ---- Editable slots ---- */
+  .slot-pill { cursor: pointer; transition: transform 0.15s ease, border-color 0.2s ease; }
+  .slot-pill:hover { transform: translateY(-1px); border-color: var(--blue); }
+  .slot-hint { text-align: center; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin: -32px auto 44px; }
+
+  /* ---- Row actions ---- */
+  .row-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--panel-border); color: var(--muted);
+    padding: 5px 10px; border-radius: 4px; font-family: var(--mono);
+    font-size: 0.72rem; letter-spacing: 0.3px; cursor: pointer;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--panel-border-hi); }
+  .icon-btn.danger:hover { color: var(--red); border-color: var(--red-dim); }
+
+  /* ---- Modal ---- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(4,5,7,0.72);
+    align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 26px 24px; position: relative;
+  }
+  .modal-box::before, .modal-box::after { content: ""; position: absolute; width: 10px; height: 10px; }
+  .modal-box::before { top: 6px; left: 6px; border-top: 1.5px solid var(--panel-border-hi); border-left: 1.5px solid var(--panel-border-hi); }
+  .modal-box::after { bottom: 6px; right: 6px; border-bottom: 1.5px solid var(--panel-border-hi); border-right: 1.5px solid var(--panel-border-hi); }
+  .modal-title { font-family: var(--mono); font-size: 1rem; margin: 0 0 18px; }
+  .modal-field { display: flex; flex-direction: column; margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .modal-btn {
+    flex: 1; border: none; border-radius: 4px; padding: 10px; font-family: var(--mono);
+    font-size: 0.82rem; font-weight: 700; letter-spacing: 0.4px; cursor: pointer;
+  }
+  .modal-btn.save { background: var(--blue); color: #0a0c10; }
+  .modal-btn.save:hover { background: #6f9bf2; }
+  .modal-btn.cancel { background: transparent; border: 1px solid var(--panel-border); color: var(--muted); }
+  .modal-btn.cancel:hover { color: var(--text); border-color: var(--panel-border-hi); }
+  .modal-error { color: var(--red); font-size: 0.78rem; font-family: var(--mono); margin-top: 10px; min-height: 1em; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .conn-status.live .conn-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN GATE -->
+<div id="loginGate" class="login-gate">
+  <form id="loginForm" class="login-box">
+    <div class="login-title">🔐 ADMIN ACCESS</div>
+    <p class="login-subtitle">Sign in to view slot status &amp; vehicle logs</p>
+    <label class="field-label" for="email">Email</label>
+    <input type="email" id="email" class="field-input" autocomplete="username" required>
+    <label class="field-label" for="password">Password</label>
+    <input type="password" id="password" class="field-input" autocomplete="current-password" required>
+    <button type="submit" class="login-btn" id="loginBtn">SIGN IN</button>
+    <div class="login-error" id="loginError"></div>
+  </form>
+</div>
+
+<!-- DASHBOARD (hidden until authed) -->
+<div id="dashboard" class="dashboard-hidden">
+  <div class="topbar">
+    <button id="signOutBtn" class="signout-btn">SIGN OUT</button>
+  </div>
+
+  <div class="eyebrow">Restricted Facility Console</div>
+  <h1>🔐 Admin Dashboard</h1>
+  <div class="subtitle">Slot status, plates &amp; vehicle logs</div>
+  <div class="conn-status" id="connStatus"><span class="conn-dot"></span><span id="connText">Connecting…</span></div>
+
+  <div class="slots-row" id="slotsRow"></div>
+  <div class="slot-hint">Click a slot to manually override its status</div>
+
+  <div class="section-title">Vehicle Logs</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Plate</th>
+          <th>Entry Time</th>
+          <th>Exit Time</th>
+          <th>Duration</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="logsBody">
+        <tr><td colspan="6" class="empty-msg">Loading logs…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- EDIT LOG MODAL -->
+<div id="editModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Edit Vehicle Log</div>
+    <form id="editForm">
+      <div class="modal-field">
+        <label class="field-label" for="editPlate">Plate Number</label>
+        <input type="text" id="editPlate" class="field-input">
+      </div>
+      <div class="modal-field">
+        <label class="field-label" for="editStatus">Status</label>
+        <select id="editStatus" class="field-input">
+          <option value="parked">Parked</option>
+          <option value="exited">Exited</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn cancel" id="editCancelBtn">Cancel</button>
+        <button type="submit" class="modal-btn save">Save Changes</button>
+      </div>
+      <div class="modal-error" id="editError"></div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, onSnapshot, query, orderBy, limit,
+    doc, updateDoc, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxlSB_ARW6blriukXdcKO9HXDK0SxnDaQ",
+    authDomain: "smart-parking-e6660.firebaseapp.com",
+    projectId: "smart-parking-e6660",
+    storageBucket: "smart-parking-e6660.firebasestorage.app",
+    messagingSenderId: "903567957139",
+    appId: "1:903567957139:web:c4722d1d343b8e13ba8166",
+    measurementId: "G-MD61RZX2TS"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // ---- Auth gate ----
+  const loginGate = document.getElementById("loginGate");
+  const dashboard = document.getElementById("dashboard");
+  const loginForm = document.getElementById("loginForm");
+  const loginBtn = document.getElementById("loginBtn");
+  const loginError = document.getElementById("loginError");
+  const signOutBtn = document.getElementById("signOutBtn");
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    loginError.textContent = "";
+    loginBtn.disabled = true;
+    loginBtn.textContent = "SIGNING IN…";
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged handles showing the dashboard
+    } catch (err) {
+      loginError.textContent = "Invalid email or password";
+      console.error(err);
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = "SIGN IN";
+    }
+  });
+
+  signOutBtn.addEventListener("click", () => {
+    signOut(auth);
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      loginGate.style.display = "none";
+      dashboard.classList.remove("dashboard-hidden");
+      loginForm.reset();
+    } else {
+      loginGate.style.display = "flex";
+      dashboard.classList.add("dashboard-hidden");
+    }
+  });
+
+  const slotsRow = document.getElementById("slotsRow");
+  const logsBody = document.getElementById("logsBody");
+  const connStatus = document.getElementById("connStatus");
+  const connText = document.getElementById("connText");
+
+  // ---- Slots ----
+  const slotPills = {};
+  function slotLabel(id) {
+    const num = id.split("_")[1];
+    return `Slot ${num}`;
+  }
+  function renderSlot(id, status) {
+    let pill = slotPills[id];
+    if (!pill) {
+      pill = document.createElement("div");
+      pill.addEventListener("click", async () => {
+        const current = pill.dataset.status;
+        const next = current === "empty" ? "occupied" : "empty";
+        try {
+          await updateDoc(doc(db, "slots", id), { status: next });
+        } catch (err) {
+          console.error("Failed to override slot:", err);
+          alert("Couldn't update slot — check console for details.");
+        }
+      });
+      slotsRow.appendChild(pill);
+      slotPills[id] = pill;
+    }
+    const isEmpty = status === "empty";
+    pill.dataset.status = status;
+    pill.className = "slot-pill " + (isEmpty ? "empty" : "occupied");
+    pill.textContent = `${slotLabel(id)}: ${isEmpty ? "Available" : "Occupied"}`;
+  }
+
+  onSnapshot(collection(db, "slots"), (snapshot) => {
+    connStatus.className = "conn-status live";
+    connText.textContent = "Live";
+    snapshot.forEach((docSnap) => renderSlot(docSnap.id, docSnap.data().status));
+  }, (error) => {
+    connStatus.className = "conn-status error";
+    connText.textContent = "Connection error — check console";
+    console.error(error);
+  });
+
+  // ---- Vehicle Logs ----
+ function fmtTime(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+}
+
+  function fmtDuration(entryTs, exitTs) {
+    if (!entryTs) return "—";
+    const start = entryTs.toDate ? entryTs.toDate() : new Date(entryTs);
+    const end = exitTs ? (exitTs.toDate ? exitTs.toDate() : new Date(exitTs)) : new Date();
+    const ms = end - start;
+    if (ms < 0) return "—";
+    const mins = Math.floor(ms / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  const logsQuery = query(collection(db, "vehicle_logs"), orderBy("entry_time", "desc"), limit(50));
+
+  onSnapshot(logsQuery, (snapshot) => {
+    if (snapshot.empty) {
+      logsBody.innerHTML = `<tr><td colspan="6" class="empty-msg">No vehicle logs yet</td></tr>`;
+      return;
+    }
+    logsBody.innerHTML = "";
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const isParked = data.status === "parked";
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td class="plate">${data.plate_number || "UNKNOWN"}</td>
+        <td>${fmtTime(data.entry_time)}</td>
+        <td>${data.exit_time ? fmtTime(data.exit_time) : "—"}</td>
+        <td>${fmtDuration(data.entry_time, data.exit_time)}</td>
+        <td><span class="badge ${isParked ? "parked" : "exited"}">${isParked ? "Parked" : "Exited"}</span></td>
+        <td class="row-actions">
+          <button class="icon-btn edit-btn">Edit</button>
+          <button class="icon-btn danger delete-btn">Delete</button>
+        </td>
+      `;
+      row.querySelector(".edit-btn").addEventListener("click", () => openEditModal(docSnap.id, data));
+      row.querySelector(".delete-btn").addEventListener("click", () => deleteLogRow(docSnap.id, data.plate_number));
+      logsBody.appendChild(row);
+    });
+  }, (error) => {
+    logsBody.innerHTML = `<tr><td colspan="6" class="empty-msg">Error loading logs — check console</td></tr>`;
+    console.error(error);
+  });
+
+  // ---- Edit / Delete log rows ----
+  const editModal = document.getElementById("editModal");
+  const editForm = document.getElementById("editForm");
+  const editPlate = document.getElementById("editPlate");
+  const editStatus = document.getElementById("editStatus");
+  const editError = document.getElementById("editError");
+  const editCancelBtn = document.getElementById("editCancelBtn");
+  let editingDocId = null;
+
+  function openEditModal(docId, data) {
+    editingDocId = docId;
+    editPlate.value = data.plate_number || "";
+    editStatus.value = data.status === "exited" ? "exited" : "parked";
+    editError.textContent = "";
+    editModal.classList.add("open");
+  }
+
+  function closeEditModal() {
+    editModal.classList.remove("open");
+    editingDocId = null;
+  }
+
+  editCancelBtn.addEventListener("click", closeEditModal);
+  editModal.addEventListener("click", (e) => {
+    if (e.target === editModal) closeEditModal();
+  });
+
+  editForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!editingDocId) return;
+    editError.textContent = "";
+    try {
+      const updates = {
+        plate_number: editPlate.value.trim() || "UNKNOWN",
+        status: editStatus.value
+      };
+      // If manually marking as exited and there's no exit_time yet, stamp it now.
+      if (editStatus.value === "exited") {
+        updates.exit_time = new Date();
+      }
+      await updateDoc(doc(db, "vehicle_logs", editingDocId), updates);
+      closeEditModal();
+    } catch (err) {
+      editError.textContent = "Failed to save — check console";
+      console.error(err);
+    }
+  });
+
+  async function deleteLogRow(docId, plateNumber) {
+    const confirmed = confirm(`Delete log for ${plateNumber || "this vehicle"}? This can't be undone.`);
+    if (!confirmed) return;
+    try {
+      await deleteDoc(doc(db, "vehicle_logs", docId));
+    } catch (err) {
+      console.error("Failed to delete row:", err);
+      alert("Couldn't delete row — check console for details.");
+    }
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Parking — Live Status</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0c10;
+    --panel: #12151b;
+    --panel-border: #1e232c;
+    --panel-border-hi: #2a3140;
+    --green: #3ddc84;
+    --green-dim: #1c3a2a;
+    --red: #ff5470;
+    --red-dim: #3a1c24;
+    --blue: #5b8def;
+    --muted: #62697a;
+    --text: #e6e9ef;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--void);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91,141,239,0.08), transparent),
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 48px 20px 60px;
+  }
+
+  .header { max-width: 760px; margin: 0 auto 40px; text-align: center; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 1.9rem;
+    letter-spacing: -0.5px;
+    margin: 0 0 8px;
+  }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 22px; }
+
+  .conn-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+  .conn-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted);
+  }
+  .conn-status.live { color: var(--green); border-color: var(--green-dim); }
+  .conn-status.live .conn-dot {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-dot 1.8s ease-in-out infinite;
+  }
+  .conn-status.error { color: var(--red); border-color: var(--red-dim); }
+  .conn-status.error .conn-dot { background: var(--red); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 18px;
+    max-width: 720px;
+    margin: 40px auto 0;
+  }
+
+  .slot-card {
+    position: relative;
+    border-radius: 4px;
+    padding: 26px 20px 22px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    transition: border-color 0.4s ease, background 0.4s ease;
+    overflow: hidden;
+    text-align: center;
+  }
+  .slot-card::before, .slot-card::after { content: ""; position: absolute; width: 10px; height: 10px; }
+  .slot-card::before { top: 6px; left: 6px; border-top: 1.5px solid var(--panel-border-hi); border-left: 1.5px solid var(--panel-border-hi); }
+  .slot-card::after { bottom: 6px; right: 6px; border-bottom: 1.5px solid var(--panel-border-hi); border-right: 1.5px solid var(--panel-border-hi); }
+
+  .slot-card.empty { border-color: var(--green-dim); background: linear-gradient(180deg, rgba(61,220,132,0.06), var(--panel) 60%); }
+  .slot-card.empty::before, .slot-card.empty::after { border-color: rgba(61,220,132,0.4); }
+  .slot-card.occupied { border-color: var(--red-dim); background: linear-gradient(180deg, rgba(255,84,112,0.06), var(--panel) 60%); }
+  .slot-card.occupied::before, .slot-card.occupied::after { border-color: rgba(255,84,112,0.4); }
+
+  .slot-id {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .status-dot {
+    width: 13px; height: 13px; border-radius: 50%;
+    margin: 0 auto 16px;
+  }
+  .empty .status-dot { background: var(--green); box-shadow: 0 0 14px rgba(61,220,132,0.7); animation: pulse-dot 2.2s ease-in-out infinite; }
+  .occupied .status-dot { background: var(--red); box-shadow: 0 0 14px rgba(255,84,112,0.6); }
+
+  .status-label {
+    font-family: var(--mono);
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .empty .status-label { color: var(--green); }
+  .occupied .status-label { color: var(--red); }
+
+  .footer-note {
+    text-align: center;
+    margin-top: 44px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-family: var(--mono);
+    letter-spacing: 0.3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .conn-status.live .conn-dot, .empty .status-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Live Facility Telemetry</div>
+  <h1>🅿 Smart Parking</h1>
+  <div class="subtitle">Real-time slot availability</div>
+  <div class="conn-status" id="connStatus"><span class="conn-dot"></span><span id="connText">Connecting…</span></div>
+</div>
+
+<div class="grid" id="slotsGrid">
+  <!-- Slot cards injected here -->
+</div>
+
+<div class="footer-note">UPDATES AUTOMATICALLY · NO PERSONAL DATA SHOWN</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxlSB_ARW6blriukXdcKO9HXDK0SxnDaQ",
+    authDomain: "smart-parking-e6660.firebaseapp.com",
+    projectId: "smart-parking-e6660",
+    storageBucket: "smart-parking-e6660.firebasestorage.app",
+    messagingSenderId: "903567957139",
+    appId: "1:903567957139:web:c4722d1d343b8e13ba8166",
+    measurementId: "G-MD61RZX2TS"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const grid = document.getElementById("slotsGrid");
+  const connStatus = document.getElementById("connStatus");
+  const connText = document.getElementById("connText");
+
+  const slotCards = {};
+
+  function slotLabel(id) {
+    const num = id.split("_")[1];
+    return `Slot ${num}`;
+  }
+
+  function renderSlot(id, status) {
+    let card = slotCards[id];
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "slot-card";
+      card.innerHTML = `
+        <div class="slot-id">${slotLabel(id)}</div>
+        <div class="status-dot"></div>
+        <div class="status-label"></div>
+      `;
+      grid.appendChild(card);
+      slotCards[id] = card;
+    }
+    const isEmpty = status === "empty";
+    card.className = "slot-card " + (isEmpty ? "empty" : "occupied");
+    card.querySelector(".status-label").textContent = isEmpty ? "Available" : "Occupied";
+  }
+
+  onSnapshot(collection(db, "slots"), (snapshot) => {
+    connStatus.className = "conn-status live";
+    connText.textContent = "Live";
+    snapshot.forEach((doc) => {
+      renderSlot(doc.id, doc.data().status);
+    });
+  }, (error) => {
+    connStatus.className = "conn-status error";
+    connText.textContent = "Connection error — check console";
+    console.error(error);
+  });
+</script>
+
+</body>
+</html>
