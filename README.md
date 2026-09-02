@@ -1,9 +1,13 @@
 # 🅿️ Smart Parking Management — Prototype
 
-A Raspberry Pi smart parking prototype: GPIO sensors + a CSI camera (IMX519) for plate OCR, Firestore for realtime slot/vehicle data, plus an admin dashboard and a public live-status page.
+A working prototype of a smart parking system for a small lot with 3 slots, built on a Raspberry Pi. It automates the two things a real parking gate needs to do — **let cars in and out, and know which slots are free** — without a human at the gate.
 
-**Entry:** capture photo → OCR plate → log entry to Firestore → open gate.
-**Exit:** capture photo → OCR plate → fuzzy-match against parked vehicles. Match found → close that record. No match → logged as `unresolved_exit` for manual review (gate opens either way).
+Two IR sensors watch the entry and exit points; three more watch the individual slots. When a car arrives, a camera photographs its plate, OCR reads the plate number, the gate opens automatically, and the vehicle is logged to Firestore in realtime. When a car leaves, the system re-photographs and re-reads the plate, then fuzzy-matches it against every car currently parked (since more than one car can be parked at once) to figure out *which* car is leaving and close out its record — rather than just assuming "whoever entered last is leaving now."
+
+Two web pages sit on top of this: a **public live-status page** anyone can check to see which slots are free, and a **password-protected admin dashboard** where staff can review vehicle history and manually fix a record if the OCR got a plate wrong.
+
+**Entry flow:** sensor detects a car → photo → OCR the plate → log entry to Firestore → open gate.
+**Exit flow:** sensor detects a car → photo → OCR the plate → fuzzy-match against parked vehicles → match found closes that record, no match logs it as `unresolved_exit` for a human to sort out later (the gate still opens either way — physical access never blocks on OCR).
 
 ## ✨ Features
 
